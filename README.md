@@ -15,6 +15,8 @@ No cloud API. No code leaving your laptop.
 - **Multi-project indexes** — each repo gets its own vector store; switch without re-indexing
 - **Incremental sync** — only re-embeds changed files
 - **Agent mode** — multi-step tool loop (read, grep, edit, git, AST references)
+- **Plan mode** — read-only exploration, approaches + questions, then `/execute` to implement
+- **Saved plans** — auto-save under `storage/projects/<id>/plans/`; resume with `/resume` or `--resume`
 - **Simple RAG mode** — single-shot Q&A without the agent loop
 - **Browser diff preview** — Claude-style review UI before applying writes/edits
 - **Slash commands** — `/grep`, `/read`, `/edit`, `/projects`, and more
@@ -100,13 +102,14 @@ cp .env.example .env
 ```
 
 ```env
+# Optional — defaults to current directory if omitted
 PROJECT_PATH=D:\path\to\your\project
 OLLAMA_BASE_URL=http://localhost:11434
 LLM_MODEL=qwen2.5-coder:14b
 EMBED_MODEL=nomic-embed-text
 ```
 
-`PROJECT_PATH` is optional if you always pass the project via CLI.
+`PROJECT_PATH` is optional. If you omit it, pass the project on the CLI or run commands from inside the repo.
 
 ## Quick Start
 
@@ -114,26 +117,35 @@ EMBED_MODEL=nomic-embed-text
 # 1. Index a project
 npm run index -- D:\path\to\your\project
 
-# 2. Chat with the agent
-npm run chat -- D:\path\to\your\project
+# 2. Chat with the agent (from inside the repo, path is optional)
+cd D:\path\to\your\project
+npm run chat
 
-# 3. One-shot question (no agent loop)
+# 3. Plan mode — explore read-only, then /execute
+npm run chat:plan -- D:\path\to\your\project
+
+# 4. Resume a saved plan
+npm run chat:plan:resume -- D:\path\to\your\project
+
+# 5. One-shot question (no agent loop)
 npm run query -- D:\path\to\your\project "How does routing work?"
 ```
 
 ## Project Path
 
-Pass the target codebase as a CLI argument (overrides `PROJECT_PATH` in `.env`):
+The target codebase can be passed as a CLI argument, via `--project`, set in `.env`, or omitted to use the **current working directory**:
 
 ```bash
+npm run chat                              # uses cwd
 npm run chat -- D:\Projects\MyApp
 npm run chat -- --project ../my-app
 npm run index -- -p ./portfolio
 ```
 
-With npm, use `--` before arguments:
+With npm, put a `--` before script arguments so npm does not swallow flags like `--project` or `--resume`:
 
 ```bash
+npm run chat:plan -- --resume ./my-app
 npm run index -- --project ./my-app
 ```
 
@@ -144,10 +156,13 @@ Development (TypeScript directly via tsx):
 | Command | Description |
 |---------|-------------|
 | `npm run build` | Compile TypeScript to `dist/` |
+| `npm run test` | Run unit tests |
 | `npm run index` | Incremental index sync |
 | `npm run index:full` | Full rebuild of the index |
 | `npm run chat` | Interactive agent chat (default) |
 | `npm run chat:simple` | Single-shot RAG mode |
+| `npm run chat:plan` | Plan mode — read-only exploration, then `/execute` |
+| `npm run chat:plan:resume` | Plan mode + pick a saved plan on startup |
 | `npm run chat:watch` | Chat + auto re-index on file changes |
 | `npm run query` | One-shot question from the terminal |
 | `npm run watch` | Watch files and re-index on changes |
@@ -157,6 +172,7 @@ Production (compiled CLI):
 
 ```bash
 code chat ./my-app
+code chat --plan --resume ./my-app
 code index ./my-app --full
 ```
 
@@ -164,11 +180,53 @@ code index ./my-app --full
 
 | Flag | Description |
 |------|-------------|
-| `--project <path>` / `-p` | Target codebase path |
+| `--project <path>` / `-p` | Target codebase path (default: current directory) |
+| `--plan` | Start in plan mode (read-only exploration) |
+| `--resume` | Pick a saved plan on startup (plan mode) |
 | `--simple` | RAG mode instead of agent |
 | `--watch` | Auto-sync index on file changes |
 | `--no-ui` | Terminal-only diff preview (skip browser) |
 | `--full` | Force full index rebuild |
+
+## Plan Mode
+
+Plan mode works like Cursor or Claude Code planning: explore the codebase read-only, discuss approaches, produce a plan, then implement it.
+
+**Phases**
+
+1. **Discovery** — inspect files with read-only tools, present approaches and questions
+2. **Finalize** — produce a structured plan with steps and proposed changes
+3. **Execute** — run `/execute` to switch to agent mode and implement the plan
+
+**Workflow**
+
+```bash
+npm run chat:plan -- ./my-app
+# Describe what you want → answer questions → /finalize if needed → /execute
+```
+
+Follow-up prompts **update the current plan** — they do not restart discovery. Plans auto-save after each turn.
+
+**Saved plans**
+
+Plans are stored per project under:
+
+```
+storage/projects/<hash>/plans/<plan-id>/
+  session.json    # conversation + plan state
+  plan.md         # exported markdown
+```
+
+Use `/plans` to list saved plans, `/resume` to pick one and continue, or start with `--resume`:
+
+```bash
+npm run chat:plan:resume -- ./my-app
+code chat --plan --resume ./my-app
+```
+
+Export a plan to a file with `/save [path]` (default: `./plan.md`).
+
+If a model response fails to update the plan (e.g. a generic refusal), the previous saved plan is kept and recovered on resume from `plan.md` or chat history.
 
 ## Chat Commands
 
@@ -189,6 +247,13 @@ Inside `npm run chat`:
 | `/git` | Git status and diff summary |
 | `/projects` | List all indexed projects |
 | `/reindex` | Run incremental index sync |
+| `/plan` | Switch to plan mode (starts a new plan) |
+| `/agent` | Switch to agent mode (can edit files) |
+| `/finalize` | Produce final plan from current discussion |
+| `/save [path]` | Export plan to markdown (default: `./plan.md`) |
+| `/plans` | List saved plans for this project |
+| `/resume` | Pick a saved plan and continue |
+| `/execute` | Implement the last plan (after it is ready) |
 | `exit` / `quit` | Exit chat |
 
 ## Agent Tools
@@ -208,7 +273,7 @@ In agent mode, the LLM can call these tools automatically:
 | `edit_file` | Replace a line range |
 | `write_file` | Write or overwrite a file |
 
-Mutating tools (`edit_file`, `write_file`) open a **browser diff preview** for approval before applying.
+Mutating tools (`edit_file`, `write_file`) open a **browser diff preview** for approval before applying. In plan mode, only read-only tools are available until you run `/execute`.
 
 Preview server runs at `http://127.0.0.1:3847`. Use `--no-ui` to fall back to terminal `y/N`.
 
@@ -223,6 +288,11 @@ storage/
     <hash>/
       manifest.json    # file mtimes for incremental sync
       lancedb/         # vector embeddings
+      plans/           # saved plan sessions (plan mode)
+        index.json
+        <plan-id>/
+          session.json
+          plan.md
 ```
 
 Switch between indexed projects instantly — no full rebuild unless files changed.
@@ -243,7 +313,7 @@ src/
 ├── indexing/      # Loader, chunker, embedder, LanceDB, sync
 ├── retrieval/     # Vector search + context assembly
 ├── llm/           # Ollama client and prompt builder
-├── agent/         # Agent loop, tool parsing, session memory
+├── agent/         # Agent loop, plan mode, plan storage, session memory
 ├── tools/         # Read, write, grep, git, AST tools
 └── preview/       # Browser diff review UI
 ```
