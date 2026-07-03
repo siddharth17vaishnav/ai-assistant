@@ -1,4 +1,4 @@
-# LocalCode
+# Code
 
 A local coding assistant powered by **Ollama** and **RAG** (Retrieval-Augmented Generation). Index any codebase, ask questions about it, and let an agent read files, search symbols, and propose edits — all running on your machine.
 
@@ -68,25 +68,27 @@ npm run build
 ### As a global CLI
 
 ```bash
-npm install -g localcode
+npm install -g @siddharth17vaishnav/code
 # or from this repo:
 npm link
 ```
 
-Then use the `localcode` command anywhere:
+Then use the `code` command anywhere:
 
 ```bash
-localcode index ./my-app
-localcode chat ./my-app
-localcode query ./my-app "How does routing work?"
-localcode --help
+code index ./my-app
+code chat ./my-app
+code query ./my-app "How does routing work?"
+code --help
 ```
+
+> **Note:** If you have VS Code installed, its `code` command may conflict. Use `npx @siddharth17vaishnav/code` or rename the VS Code alias instead.
 
 ### Build the package
 
 ```bash
 npm run build          # compile to dist/
-npm pack               # create localcode-1.0.0.tgz
+npm pack               # create package tarball
 ```
 
 Create a `.env` file:
@@ -148,8 +150,8 @@ Development (TypeScript directly via tsx):
 Production (compiled CLI):
 
 ```bash
-localcode chat ./my-app
-localcode index ./my-app --full
+code chat ./my-app
+code index ./my-app --full
 ```
 
 ### Flags

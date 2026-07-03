@@ -204,7 +204,7 @@ export function renderDiffPage(preview: DiffPreview, previewId: string): string 
 <body>
   <div class="shell">
     <div class="header">
-      <div class="eyebrow">LocalCode · Review change</div>
+      <div class="eyebrow">Code · Review change</div>
       <h1>${escapeHtml(preview.title)}</h1>
       <div class="summary">${escapeHtml(preview.summary)}</div>
     </div>

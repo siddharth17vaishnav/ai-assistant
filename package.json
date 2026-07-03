@@ -1,11 +1,11 @@
 {
-  "name": "localcode",
+  "name": "@siddharth17vaishnav/code",
   "version": "1.0.0",
-  "description": "LocalCode — local RAG coding assistant powered by Ollama and LanceDB",
+  "description": "Code — local RAG coding assistant powered by Ollama and LanceDB",
   "type": "module",
   "main": "./dist/cli/main.js",
   "bin": {
-    "localcode": "./dist/cli/main.js"
+    "code": "./dist/cli/main.js"
   },
   "files": [
     "dist",
@@ -35,6 +35,9 @@
   ],
   "author": "Siddharth Vaishnav",
   "license": "ISC",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/siddharth17vaishnav/ai-assistant.git"

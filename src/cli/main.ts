@@ -5,10 +5,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const HELP = `
-localcode — local RAG coding assistant
+code — local RAG coding assistant
 
 Usage:
-  localcode <command> [options] [project-path]
+  code <command> [options] [project-path]
 
 Commands:
   chat      Interactive agent chat (default workflow)
@@ -25,12 +25,12 @@ Options:
   --full          Force full index rebuild (index)
 
 Examples:
-  localcode index ./my-app
-  localcode index ./my-app --full
-  localcode chat --project D:\\Projects\\MyApp
-  localcode query ./my-app "How does auth work?"
+  code index ./my-app
+  code index ./my-app --full
+  code chat --project D:\\Projects\\MyApp
+  code query ./my-app "How does auth work?"
 
-Install globally: npm install -g localcode
+Install globally: npm install -g @siddharth17vaishnav/code
 `.trim();
 
 type CommandRunner = () => Promise<void>;
