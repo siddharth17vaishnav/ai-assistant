@@ -1,0 +1,26 @@
+---
+description: Git commit rules — never add Co-authored-by trailers
+alwaysApply: true
+---
+
+# Git Commits
+
+When creating or amending git commits in this repo:
+
+- **Never** add `Co-authored-by` lines (including `Co-authored-by: Cursor <cursoragent@cursor.com>`).
+- Use a single-line or short multi-line message with **only** the commit subject/body the user requested.
+- If amending or rewriting history to remove co-author trailers, do not reintroduce them.
+
+Example — correct:
+
+```
+Release v1.0.2 — add unit test suite.
+```
+
+Example — do **not** use:
+
+```
+Release v1.0.2 — add unit test suite.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+```
