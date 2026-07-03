@@ -4,14 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "index": "tsx src/indexer.ts",
-    "index:full": "tsx src/indexer.ts --full",
-    "watch": "tsx src/watch.ts",
-    "query": "tsx src/query.ts",
-    "chat": "tsx src/chat.ts",
-    "chat:simple": "tsx src/chat.ts --simple",
-    "chat:watch": "tsx src/chat.ts --watch",
-    "dev": "tsx src/index.ts"
+    "index": "tsx src/cli/indexer.ts",
+    "index:full": "tsx src/cli/indexer.ts --full",
+    "watch": "tsx src/cli/watch.ts",
+    "query": "tsx src/cli/query.ts",
+    "chat": "tsx src/cli/chat.ts",
+    "chat:simple": "tsx src/cli/chat.ts --simple",
+    "chat:watch": "tsx src/cli/chat.ts --watch",
+    "dev": "tsx src/cli/dev.ts"
   },
   "keywords": [],
   "author": "",

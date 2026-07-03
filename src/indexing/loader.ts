@@ -2,8 +2,8 @@ import fg from "fast-glob";
 import fs from "fs/promises";
 import path from "path";
 
-import { config } from "./config.js";
-import type { FileEntry, ProjectFile } from "./types.js";
+import { config } from "../core/config.js";
+import type { FileEntry, ProjectFile } from "../core/types.js";
 
 function projectPatterns(): string[] {
   const root = config.projectPath.replace(/\\/g, "/");

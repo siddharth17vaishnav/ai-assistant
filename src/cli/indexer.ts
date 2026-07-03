@@ -1,7 +1,7 @@
-import { config } from "./config.js";
-import { syncIndex } from "./syncIndex.js";
+import { config } from "../core/config.js";
+import { syncIndex } from "../indexing/syncIndex.js";
 
-import { hasFlag } from "./cliArgs.js";
+import { hasFlag } from "../core/cliArgs.js";
 
 const forceFull = hasFlag("--full");
 

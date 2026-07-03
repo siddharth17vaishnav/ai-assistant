@@ -1,9 +1,9 @@
 import path from "path";
 import { Project, SyntaxKind } from "ts-morph";
 
-import { config } from "../config.js";
-import { listProjectPaths } from "../loader.js";
-import type { ReferenceMatch } from "../types.js";
+import { config } from "../core/config.js";
+import { listProjectPaths } from "../indexing/loader.js";
+import type { ReferenceMatch } from "../core/types.js";
 
 let projectCache: Project | null = null;
 

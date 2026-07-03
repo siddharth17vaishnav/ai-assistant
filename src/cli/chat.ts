@@ -1,16 +1,16 @@
 import readline from "readline/promises";
 import { stdin as input, stdout as output } from "process";
 
-import { formatAgentStep, runAgent } from "./agent.js";
-import { chat, type ChatMessage } from "./llm.js";
-import { buildPrompt, formatSources } from "./prompt.js";
-import { retrieveHybrid } from "./retriever.js";
-import { appendTurn, trimHistory } from "./session.js";
-import { syncIndex } from "./syncIndex.js";
-import { buildEditDiffPreview, buildWriteDiffPreview } from "./tools/diff.js";
-import { editProjectFile } from "./tools/editFile.js";
-import { getGitSummary, getRecentDiff, isGitQuestion } from "./tools/git.js";
-import { formatGrepResults, grep } from "./tools/grep.js";
+import { formatAgentStep, runAgent } from "../agent/agent.js";
+import { chat, type ChatMessage } from "../llm/llm.js";
+import { buildPrompt, formatSources } from "../llm/prompt.js";
+import { retrieveHybrid } from "../retrieval/retriever.js";
+import { appendTurn, trimHistory } from "../agent/session.js";
+import { syncIndex } from "../indexing/syncIndex.js";
+import { buildEditDiffPreview, buildWriteDiffPreview } from "../tools/diff.js";
+import { editProjectFile } from "../tools/editFile.js";
+import { getGitSummary, getRecentDiff, isGitQuestion } from "../tools/git.js";
+import { formatGrepResults, grep } from "../tools/grep.js";
 import {
   formatImports,
   findReferences,
@@ -19,25 +19,25 @@ import {
   formatImporterResults,
   getImports,
   resetProjectCache,
-} from "./tools/references.js";
+} from "../tools/references.js";
 import {
   formatFileWithLineNumbers,
   readProjectFile,
-} from "./tools/readFile.js";
-import { syncProjectAfterWrite } from "./tools/registry.js";
+} from "../tools/readFile.js";
+import { syncProjectAfterWrite } from "../tools/registry.js";
 import {
   findSymbol,
   formatSymbolResults,
-} from "./tools/symbols.js";
-import { writeProjectFile } from "./tools/writeFile.js";
-import { startWatcher } from "./watcher.js";
-import { confirmDiffPreview } from "./web/confirmPreview.js";
-import { config } from "./config.js";
-import { hasFlag } from "./cliArgs.js";
+} from "../tools/symbols.js";
+import { writeProjectFile } from "../tools/writeFile.js";
+import { startWatcher } from "../indexing/watcher.js";
+import { confirmDiffPreview } from "../preview/confirmPreview.js";
+import { config } from "../core/config.js";
+import { hasFlag } from "../core/cliArgs.js";
 import {
   formatIndexedProjects,
   listIndexedProjects,
-} from "./projectStorage.js";
+} from "../core/projectStorage.js";
 
 const enableWatch = hasFlag("--watch");
 const simpleMode = hasFlag("--simple");

@@ -1,9 +1,9 @@
 import fs from "fs/promises";
 import path from "path";
 
-import { config } from "./config.js";
-import type { FileEntry, IndexManifest } from "./types.js";
-import { touchProjectRegistry } from "./projectStorage.js";
+import { config } from "../core/config.js";
+import type { FileEntry, IndexManifest } from "../core/types.js";
+import { touchProjectRegistry } from "../core/projectStorage.js";
 
 export async function loadManifest(): Promise<IndexManifest | null> {
   try {

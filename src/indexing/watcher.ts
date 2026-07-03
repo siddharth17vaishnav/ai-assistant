@@ -1,9 +1,9 @@
 import fs from "fs";
 import path from "path";
 
-import { config } from "./config.js";
+import { config } from "../core/config.js";
 import { syncIndex } from "./syncIndex.js";
-import type { SyncResult } from "./types.js";
+import type { SyncResult } from "../core/types.js";
 
 const IGNORED_SEGMENTS = new Set([
   "node_modules",

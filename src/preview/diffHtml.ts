@@ -1,4 +1,4 @@
-import type { DiffPreview } from "../types.js";
+import type { DiffPreview } from "../core/types.js";
 
 function escapeHtml(value: string): string {
   return value

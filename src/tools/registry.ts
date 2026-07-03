@@ -1,5 +1,5 @@
-import { retrieveHybrid } from "../retriever.js";
-import { syncIndex } from "../syncIndex.js";
+import { retrieveHybrid } from "../retrieval/retriever.js";
+import { syncIndex } from "../indexing/syncIndex.js";
 import { getGitSummary, getRecentDiff } from "./git.js";
 import { editProjectFile, readProjectLines } from "./editFile.js";
 import { formatGrepResults, grep } from "./grep.js";
@@ -19,7 +19,7 @@ import {
   buildMutationDiffPreview,
   MUTATING_TOOLS,
 } from "./diff.js";
-import type { DiffPreview } from "../types.js";
+import type { DiffPreview } from "../core/types.js";
 
 export interface ToolDefinition {
   type: "function";

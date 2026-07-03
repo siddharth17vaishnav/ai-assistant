@@ -2,8 +2,8 @@ import http from "http";
 import { exec } from "child_process";
 import { randomUUID } from "crypto";
 
-import { config } from "../config.js";
-import type { DiffPreview } from "../types.js";
+import { config } from "../core/config.js";
+import type { DiffPreview } from "../core/types.js";
 import { renderDiffPage } from "./diffHtml.js";
 
 interface PendingPreview {

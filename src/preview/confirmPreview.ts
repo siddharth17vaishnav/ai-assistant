@@ -1,8 +1,8 @@
 import readline from "readline/promises";
 
-import { hasFlag } from "../cliArgs.js";
-import { config } from "../config.js";
-import type { DiffPreview } from "../types.js";
+import { hasFlag } from "../core/cliArgs.js";
+import { config } from "../core/config.js";
+import type { DiffPreview } from "../core/types.js";
 import { formatDiffPreviewText } from "../tools/diff.js";
 import { requestWebPreviewApproval } from "./previewServer.js";
 

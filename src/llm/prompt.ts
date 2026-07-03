@@ -1,4 +1,4 @@
-import type { SearchResult } from "./types.js";
+import type { SearchResult } from "../core/types.js";
 
 export function buildPrompt(
   question: string,

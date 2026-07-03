@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 
-import { config } from "../config.js";
+import { config } from "../core/config.js";
 
 export function resolveProjectPath(relativePath: string): string {
   const normalized = relativePath.replace(/\\/g, "/");

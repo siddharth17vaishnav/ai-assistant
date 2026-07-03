@@ -1,7 +1,7 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 
-import { config } from "../config.js";
+import { config } from "../core/config.js";
 
 const execFileAsync = promisify(execFile);
 

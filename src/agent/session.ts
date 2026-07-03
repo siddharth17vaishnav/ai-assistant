@@ -1,5 +1,5 @@
-import type { ChatMessage } from "./llm.js";
-import { config } from "./config.js";
+import type { ChatMessage } from "../llm/llm.js";
+import { config } from "../core/config.js";
 
 export function trimHistory(messages: ChatMessage[]): ChatMessage[] {
   const maxMessages = config.agent.maxHistoryTurns * 2;

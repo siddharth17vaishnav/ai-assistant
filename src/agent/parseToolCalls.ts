@@ -1,4 +1,4 @@
-import type { ToolCall } from "./llm.js";
+import type { ToolCall } from "../llm/llm.js";
 
 function tryParseObject(text: string): unknown {
   try {

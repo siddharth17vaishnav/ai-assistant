@@ -1,10 +1,10 @@
-import { grep } from "./tools/grep.js";
-import { findSymbol } from "./tools/symbols.js";
-import { getChangedFiles } from "./tools/git.js";
-import { config } from "./config.js";
-import { embed } from "./embedder.js";
-import { searchChunks } from "./vectorStore.js";
-import type { GrepMatch, SearchResult } from "./types.js";
+import { grep } from "../tools/grep.js";
+import { findSymbol } from "../tools/symbols.js";
+import { getChangedFiles } from "../tools/git.js";
+import { config } from "../core/config.js";
+import { embed } from "../indexing/embedder.js";
+import { searchChunks } from "../indexing/vectorStore.js";
+import type { GrepMatch, SearchResult } from "../core/types.js";
 
 function normalizePath(value: string): string {
   return value.replace(/\\/g, "/");

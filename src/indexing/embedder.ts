@@ -1,4 +1,4 @@
-import { config } from "./config.js";
+import { config } from "../core/config.js";
 
 async function embedRequest(input: string | string[]): Promise<number[][]> {
   const response = await fetch(`${config.ollama.baseUrl}/api/embed`, {

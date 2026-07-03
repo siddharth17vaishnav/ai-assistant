@@ -1,5 +1,5 @@
-import { config } from "./config.js";
-import { loadProject } from "./loader.js";
+import { config } from "../core/config.js";
+import { loadProject } from "../indexing/loader.js";
 
 async function main() {
   console.log(`Project: ${config.projectPath}\n`);

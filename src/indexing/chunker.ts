@@ -1,5 +1,5 @@
-import type { Chunk } from "./types.js";
-import { config } from "./config.js";
+import type { Chunk } from "../core/types.js";
+import { config } from "../core/config.js";
 
 export function chunkCode(path: string, content: string): Chunk[] {
   const { maxLines, overlap } = config.chunking;

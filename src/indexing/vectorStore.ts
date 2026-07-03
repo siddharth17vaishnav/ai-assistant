@@ -1,7 +1,7 @@
 import * as lancedb from "@lancedb/lancedb";
 
-import { config } from "./config.js";
-import type { StoredChunk } from "./types.js";
+import { config } from "../core/config.js";
+import type { StoredChunk } from "../core/types.js";
 
 const TABLE_NAME = "code_chunks";
 

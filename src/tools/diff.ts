@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 
-import type { DiffLine, DiffPreview } from "../types.js";
+import type { DiffLine, DiffPreview } from "../core/types.js";
 import { resolveProjectPath, readProjectFile } from "./readFile.js";
 
 function buildEditLines(

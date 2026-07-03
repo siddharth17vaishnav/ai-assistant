@@ -1,10 +1,10 @@
 import { chunkCode } from "./chunker.js";
-import { config } from "./config.js";
+import { config } from "../core/config.js";
 import { embedBatch } from "./embedder.js";
 import { loadProject, loadProjectFiles, scanProject } from "./loader.js";
 import { diffFiles, loadManifest, saveManifest } from "./manifest.js";
-import { migrateLegacyStorageIfNeeded } from "./projectStorage.js";
-import type { Chunk, ProjectFile, StoredChunk, SyncResult } from "./types.js";
+import { migrateLegacyStorageIfNeeded } from "../core/projectStorage.js";
+import type { Chunk, ProjectFile, StoredChunk, SyncResult } from "../core/types.js";
 import {
   addChunks,
   deleteChunksByPaths,

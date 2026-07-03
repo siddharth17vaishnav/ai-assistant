@@ -1,7 +1,7 @@
-import { ask } from "./llm.js";
-import { getQueryText } from "./cliArgs.js";
-import { buildPrompt, formatSources } from "./prompt.js";
-import { retrieveHybrid } from "./retriever.js";
+import { ask } from "../llm/llm.js";
+import { getQueryText } from "../core/cliArgs.js";
+import { buildPrompt, formatSources } from "../llm/prompt.js";
+import { retrieveHybrid } from "../retrieval/retriever.js";
 
 async function main() {
   const question =

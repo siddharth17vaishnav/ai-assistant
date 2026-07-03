@@ -1,9 +1,9 @@
 import fs from "fs/promises";
 import path from "path";
 
-import { config } from "../config.js";
-import { listProjectPaths } from "../loader.js";
-import type { SymbolMatch } from "../types.js";
+import { config } from "../core/config.js";
+import { listProjectPaths } from "../indexing/loader.js";
+import type { SymbolMatch } from "../core/types.js";
 
 const SYMBOL_PATTERNS: Array<{
   kind: SymbolMatch["kind"];

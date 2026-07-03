@@ -1,9 +1,9 @@
 import fs from "fs/promises";
 import path from "path";
 
-import { config } from "../config.js";
-import { listProjectPaths } from "../loader.js";
-import type { GrepMatch } from "../types.js";
+import { config } from "../core/config.js";
+import { listProjectPaths } from "../indexing/loader.js";
+import type { GrepMatch } from "../core/types.js";
 
 export async function grep(
   pattern: string,

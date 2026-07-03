@@ -1,19 +1,19 @@
-import { config } from "./config.js";
+import { config } from "../core/config.js";
 import {
   isFinalAnswer,
   parseToolCallsFromText,
 } from "./parseToolCalls.js";
-import { chat, type ChatMessage, type ToolCall } from "./llm.js";
-import { retrieveHybrid } from "./retriever.js";
+import { chat, type ChatMessage, type ToolCall } from "../llm/llm.js";
+import { retrieveHybrid } from "../retrieval/retriever.js";
 import { trimHistory } from "./session.js";
 import {
   executeTool,
   getToolNames,
   type ToolContext,
-} from "./tools/registry.js";
-import { getGitSummary, getRecentDiff, isGitQuestion } from "./tools/git.js";
-import { buildPrompt } from "./prompt.js";
-import { ask } from "./llm.js";
+} from "../tools/registry.js";
+import { getGitSummary, getRecentDiff, isGitQuestion } from "../tools/git.js";
+import { buildPrompt } from "../llm/prompt.js";
+import { ask } from "../llm/llm.js";
 
 function buildSystemPrompt(): string {
   const toolNames = getToolNames().join(", ");
