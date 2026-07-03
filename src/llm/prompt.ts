@@ -1,4 +1,5 @@
 import type { SearchResult } from "../core/types.js";
+import { LOCAL_ASSISTANT_RULES } from "../agent/capabilities.js";
 
 export function buildPrompt(
   question: string,
@@ -13,8 +14,9 @@ export function buildPrompt(
     .join("\n\n---\n\n");
 
   const sections = [
-    "You are a coding assistant. Answer based only on the provided code context.",
-    "Cite file paths and line numbers when relevant. If the context is insufficient, say so.",
+    LOCAL_ASSISTANT_RULES,
+    "Answer based on the provided code context from the user's project.",
+    "Cite file paths and line numbers. If context is insufficient, say which files to inspect — do not claim you lack access.",
   ];
 
   if (extraContext) {

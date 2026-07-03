@@ -9,6 +9,7 @@ import {
   hasFlag,
   parseCli,
   resetCliCache,
+  resolveConfigProjectPath,
 } from "../../src/core/cliArgs.js";
 
 function withArgv(args: string[], run: () => void) {
@@ -66,4 +67,26 @@ test("getQueryText joins remaining positional args", () => {
   withArgv(["query", "how", "does", "auth", "work"], () => {
     assert.equal(getQueryText(), "how does auth work");
   });
+});
+
+test("resolveConfigProjectPath defaults to the current working directory", () => {
+  const previousEnv = process.env.PROJECT_PATH;
+  const previousArgv = process.argv;
+
+  try {
+    delete process.env.PROJECT_PATH;
+    process.argv = ["node", "test", "chat"];
+    resetCliCache();
+
+    assert.equal(resolveConfigProjectPath(), path.resolve(process.cwd()));
+  } finally {
+    process.argv = previousArgv;
+    resetCliCache();
+
+    if (previousEnv === undefined) {
+      delete process.env.PROJECT_PATH;
+    } else {
+      process.env.PROJECT_PATH = previousEnv;
+    }
+  }
 });

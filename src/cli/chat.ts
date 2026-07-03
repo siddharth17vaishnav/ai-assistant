@@ -1,7 +1,28 @@
 import readline from "readline/promises";
 import { stdin as input, stdout as output } from "process";
+import path from "path";
 
-import { formatAgentStep, runAgent } from "../agent/agent.js";
+import { formatAgentStep, executePlan, runAgent, runPlanner } from "../agent/agent.js";
+import type { PlanPhase } from "../agent/plan.js";
+import {
+  assessPlanOutput,
+  formatPlanFollowUpHint,
+  isPersistablePlanContent,
+} from "../agent/plan.js";
+import { LOCAL_ASSISTANT_RULES } from "../agent/capabilities.js";
+import {
+  createPlanId,
+  createPlanSnapshot,
+  deletePlanRecord,
+  formatSavedPlansList,
+  getPlanRecordPaths,
+  listSavedPlans,
+  savePlanRecord,
+  savePlanToFile,
+  titleFromPrompt,
+  type PlanSessionSnapshot,
+} from "../agent/planStorage.js";
+import { promptPlanSelection } from "../agent/planResume.js";
 import { chat, type ChatMessage } from "../llm/llm.js";
 import { buildPrompt, formatSources } from "../llm/prompt.js";
 import { retrieveHybrid } from "../retrieval/retriever.js";
@@ -46,6 +67,137 @@ import {
 
 const enableWatch = hasFlag("--watch");
 const simpleMode = hasFlag("--simple");
+const startInPlanMode = hasFlag("--plan");
+const autoResume = hasFlag("--resume");
+
+type ChatMode = "simple" | "agent" | "plan";
+
+function resolveInitialMode(): ChatMode {
+  if (simpleMode) {
+    return "simple";
+  }
+
+  if (startInPlanMode) {
+    return "plan";
+  }
+
+  return "agent";
+}
+
+function formatModeLabel(mode: ChatMode): string {
+  switch (mode) {
+    case "simple":
+      return "simple RAG";
+    case "plan":
+      return "plan";
+    default:
+      return "agent";
+  }
+}
+
+interface PlanSessionState {
+  phase: PlanPhase;
+  readyToExecute: boolean;
+  hasPlan: boolean;
+}
+
+function createPlanSession(): PlanSessionState {
+  return { phase: "discover", readyToExecute: false, hasPlan: false };
+}
+
+function resetPlanSession(planSession: PlanSessionState): void {
+  planSession.phase = "discover";
+  planSession.readyToExecute = false;
+  planSession.hasPlan = false;
+}
+
+function buildPlanQuestion(
+  question: string,
+  planSession: PlanSessionState,
+  lastPlan: string | null,
+): string {
+  if (
+    planSession.hasPlan &&
+    planSession.phase === "finalize" &&
+    lastPlan &&
+    planSession.readyToExecute
+  ) {
+    return `Update the current plan based on this feedback. Produce a full revised plan (not a diff).\n\nFeedback:\n${question}\n\nCurrent plan:\n${lastPlan}`;
+  }
+
+  return question;
+}
+
+interface ChatState {
+  history: ChatMessage[];
+  lastPlan: string | null;
+  session: { mode: ChatMode };
+  planSession: PlanSessionState;
+  activePlanId: string | null;
+  planCreatedAt: string | null;
+  planTitle: string | null;
+}
+
+function startNewPlan(chatState: ChatState): void {
+  chatState.activePlanId = createPlanId();
+  chatState.planCreatedAt = new Date().toISOString();
+  chatState.history = [];
+  chatState.lastPlan = null;
+  chatState.planTitle = null;
+  resetPlanSession(chatState.planSession);
+}
+
+function capturePlanTitle(chatState: ChatState, prompt: string): void {
+  if (!chatState.planTitle && prompt.trim()) {
+    chatState.planTitle = titleFromPrompt(prompt);
+  }
+}
+
+function ensureActivePlan(chatState: ChatState): void {
+  if (!chatState.activePlanId) {
+    chatState.activePlanId = createPlanId();
+    chatState.planCreatedAt = new Date().toISOString();
+  }
+}
+
+async function persistChatState(state: ChatState): Promise<void> {
+  if (!state.planSession.hasPlan && state.history.length === 0) {
+    return;
+  }
+
+  ensureActivePlan(state);
+
+  const snapshot = createPlanSnapshot({
+    id: state.activePlanId!,
+    title: state.planTitle ?? undefined,
+    createdAt: state.planCreatedAt ?? new Date().toISOString(),
+    chatMode: state.session.mode,
+    planPhase: state.planSession.phase,
+    readyToExecute: state.planSession.readyToExecute,
+    hasPlan: state.planSession.hasPlan,
+    lastPlan: state.lastPlan,
+    history: state.history,
+  });
+
+  await savePlanRecord(config.projectStorageDir, snapshot, {
+    projectPath: config.projectPath,
+  });
+}
+
+function applySavedSession(
+  state: ChatState,
+  saved: PlanSessionSnapshot,
+): void {
+  state.history = saved.history;
+  state.lastPlan = saved.lastPlan;
+  state.session.mode = saved.chatMode;
+  state.planSession.phase = saved.planPhase;
+  state.planSession.readyToExecute = saved.readyToExecute;
+  state.planSession.hasPlan = saved.hasPlan;
+  state.activePlanId = saved.id;
+  state.planCreatedAt = saved.createdAt;
+  state.planTitle = saved.title;
+}
 
 const HELP = `
 Commands:
@@ -62,13 +214,21 @@ Commands:
   /git                       Show git status and diff summary
   /projects                  List all indexed projects
   /reindex                   Run incremental index sync
+  /plan                      Switch to plan mode (read-only exploration)
+  /agent                     Switch to agent mode (can edit files)
+  /finalize                  Produce final plan from current discussion
+  /save [path]               Save plan to markdown (default: ./plan.md)
+  /plans                     List saved plans for this project
+  /resume                    Pick a saved plan and continue
+  /execute                   Implement the last plan (after it is ready)
   exit | quit                Quit
 
 Modes:
   <path>      Project path as first argument (e.g. npm run dev -- ./my-app)
-  --project   Path to the codebase (overrides PROJECT_PATH in .env)
+  --project   Path to the codebase (default: current directory)
   -p          Short form of --project
   Default     Agent mode with conversation memory
+  --plan      Start in plan mode (explore first, /execute to implement)
   --simple    Single-shot hybrid RAG (still remembers prior turns)
   --watch     Auto-sync index on file changes
   --no-ui     Terminal-only diff preview (skip browser UI)
@@ -79,6 +239,11 @@ Examples:
   npm run index -- -p ./portfolio
 
 Tips:
+  Plan mode runs in two phases: discovery (approaches + questions) then finalize.
+  Follow-up prompts update the current plan — they do not start over.
+  Plans auto-save under storage/projects/<id>/plans/.
+  Use --resume to pick a saved plan on startup, or /resume anytime.
+  Use /plans to list saved plans, or /plan to start a new plan.
   Code changes open in a Claude-style browser preview by default.
   Follow-up questions work: "show me the full file" / "what about tests?"
 `.trim();
@@ -104,8 +269,19 @@ async function readMultiline(rl: readline.Interface): Promise<string> {
 async function handleCommand(
   line: string,
   rl: readline.Interface,
-  resetHistory: () => void,
+  chatState: ChatState,
 ): Promise<boolean> {
+  const resetHistory = () => {
+    if (chatState.activePlanId) {
+      void deletePlanRecord(config.projectStorageDir, chatState.activePlanId);
+    }
+    chatState.activePlanId = null;
+    chatState.planCreatedAt = null;
+    chatState.planTitle = null;
+    chatState.history = [];
+    chatState.lastPlan = null;
+    resetPlanSession(chatState.planSession);
+  };
   const [command, ...rest] = line.split(/\s+/);
 
   switch (command.toLowerCase()) {
@@ -117,6 +293,63 @@ async function handleCommand(
       resetHistory();
       console.log("\nConversation cleared.\n");
       return true;
+
+    case "/plan":
+      chatState.session.mode = "plan";
+      startNewPlan(chatState);
+      console.log(
+        "\nPlan mode — new plan started. Discovery first, then finalize.\n",
+      );
+      return true;
+
+    case "/agent":
+      chatState.session.mode = "agent";
+      console.log("\nAgent mode — tools can read and edit files.\n");
+      return true;
+
+    case "/resume": {
+      const saved = await promptPlanSelection(rl, config.projectStorageDir);
+
+      if (saved) {
+        applySavedSession(chatState, saved);
+        chatState.session.mode = "plan";
+        console.log(`Mode: ${formatModeLabel(chatState.session.mode)}`);
+      }
+
+      return true;
+    }
+
+    case "/plans": {
+      const plans = await listSavedPlans(config.projectStorageDir);
+      console.log(`\n${formatSavedPlansList(plans)}\n`);
+      return true;
+    }
+
+    case "/save": {
+      if (!chatState.lastPlan) {
+        console.log("\nNo plan to save yet.\n");
+        return true;
+      }
+
+      const targetArg = rest.join(" ").trim();
+      const targetPath = targetArg
+        ? path.resolve(targetArg)
+        : path.join(config.projectPath, "plan.md");
+      const updatedAt = new Date().toISOString();
+      const savedPath = await savePlanToFile(
+        targetPath,
+        chatState.lastPlan,
+        {
+          projectPath: config.projectPath,
+          updatedAt,
+          ready: chatState.planSession.readyToExecute,
+        },
+      );
+
+      await persistChatState(chatState);
+      console.log(`\nPlan saved to ${savedPath}\n`);
+      return true;
+    }
 
     case "/read": {
       const arg = rest.join(" ").trim();
@@ -303,8 +536,7 @@ async function answerSimple(question: string, history: ChatMessage[]) {
   const result = await chat([
     {
       role: "system",
-      content:
-        "You are a coding assistant. Use the provided code context and prior conversation.",
+      content: `${LOCAL_ASSISTANT_RULES}\n\nUse the provided code context and prior conversation.`,
     },
     ...trimHistory(history),
     { role: "user", content: prompt },
@@ -316,6 +548,106 @@ async function answerSimple(question: string, history: ChatMessage[]) {
   console.log();
 
   return result.content.trim();
+}
+
+async function answerWithPlan(
+  question: string,
+  chatState: ChatState,
+  rl: readline.Interface,
+  phaseOverride?: PlanPhase,
+) {
+  const { planSession } = chatState;
+  let phase = phaseOverride ?? planSession.phase;
+
+  if (planSession.hasPlan && phase === "discover" && !phaseOverride) {
+    phase = "finalize";
+  }
+
+  const plannerQuestion = buildPlanQuestion(
+    question,
+    planSession,
+    chatState.lastPlan,
+  );
+  const phaseLabel =
+    phase === "discover"
+      ? "discovery (read-only)"
+      : planSession.hasPlan && planSession.readyToExecute
+        ? "updating plan"
+        : "finalizing";
+
+  console.log(`\nPlanning — ${phaseLabel}...\n`);
+
+  const answer = await runPlanner(plannerQuestion, {
+    history: chatState.history,
+    planPhase: phase,
+    onStep: (step, toolName, args) => {
+      console.log(formatAgentStep(step, toolName, args));
+    },
+    toolContext: {
+      readOnly: true,
+    },
+  });
+
+  const assessment = assessPlanOutput(answer, phase);
+
+  planSession.hasPlan = true;
+
+  if (phase === "discover") {
+    if (assessment.hasOpenQuestions) {
+      planSession.phase = "finalize";
+      planSession.readyToExecute = false;
+    } else {
+      planSession.readyToExecute = assessment.readyToExecute;
+      planSession.phase = "finalize";
+    }
+  } else {
+    planSession.readyToExecute = assessment.readyToExecute;
+    planSession.phase = "finalize";
+  }
+
+  const previousPlan = chatState.lastPlan;
+  const planUpdated = isPersistablePlanContent(answer);
+
+  if (planUpdated) {
+    chatState.lastPlan = answer;
+  } else if (previousPlan && isPersistablePlanContent(previousPlan)) {
+    chatState.lastPlan = previousPlan;
+  } else {
+    chatState.lastPlan = answer;
+  }
+
+  await persistChatState(chatState);
+
+  const displayPlan = planUpdated
+    ? answer
+    : chatState.lastPlan && isPersistablePlanContent(chatState.lastPlan)
+      ? chatState.lastPlan
+      : answer;
+
+  if (chatState.activePlanId) {
+    const { markdownPath } = getPlanRecordPaths(
+      config.projectStorageDir,
+      chatState.activePlanId,
+    );
+    console.log(`\nPlan:\n${displayPlan}\n`);
+    if (!planUpdated && previousPlan && isPersistablePlanContent(previousPlan)) {
+      console.log(
+        "Plan not updated — kept your previous saved plan. Try rephrasing your feedback.\n",
+      );
+    }
+    console.log(`${formatPlanFollowUpHint(assessment)}`);
+    console.log(`Saved to ${markdownPath}\n`);
+  } else {
+    console.log(`\nPlan:\n${displayPlan}\n`);
+    if (!planUpdated && previousPlan && isPersistablePlanContent(previousPlan)) {
+      console.log(
+        "Plan not updated — kept your previous saved plan. Try rephrasing your feedback.\n",
+      );
+    }
+    console.log(`${formatPlanFollowUpHint(assessment)}\n`);
+  }
+
+  return planUpdated ? answer : displayPlan;
 }
 
 async function answerWithAgent(
@@ -345,14 +677,32 @@ export async function runChat() {
   }
 
   const rl = readline.createInterface({ input, output });
-  let history: ChatMessage[] = [];
-
-  const resetHistory = () => {
-    history = [];
+  const chatState: ChatState = {
+    history: [],
+    lastPlan: null,
+    session: { mode: resolveInitialMode() },
+    planSession: createPlanSession(),
+    activePlanId: null,
+    planCreatedAt: null,
+    planTitle: null,
   };
 
-  const modeLabel = simpleMode ? "simple RAG" : "agent";
-  console.log(`code (${modeLabel})`);
+  const savedPlans = await listSavedPlans(config.projectStorageDir);
+
+  if (autoResume) {
+    const saved = await promptPlanSelection(rl, config.projectStorageDir);
+
+    if (saved) {
+      applySavedSession(chatState, saved);
+      chatState.session.mode = "plan";
+    }
+  } else if (savedPlans.length > 0) {
+    console.log(
+      `${savedPlans.length} saved plan(s). Run /resume or start with --resume to pick one.\n`,
+    );
+  }
+
+  console.log(`code (${formatModeLabel(chatState.session.mode)})`);
   console.log(`Project: ${config.projectPath}`);
   console.log(`Index storage: ${config.projectStorageDir}\n`);
 
@@ -364,20 +714,78 @@ export async function runChat() {
     const question = raw.trim();
 
     if (!question || question === "exit" || question === "quit") {
+      await persistChatState(chatState);
       break;
     }
 
     try {
-      if (question.startsWith("/")) {
-        await handleCommand(question, rl, resetHistory);
+      if (question === "/execute") {
+        if (!chatState.lastPlan) {
+          console.log(
+            "\nNo plan yet. Use /plan, describe what you want, answer questions, then /execute.\n",
+          );
+          continue;
+        }
+
+        if (!chatState.planSession.readyToExecute) {
+          console.log(
+            "\nPlan not ready. Answer the open questions or run /finalize first.\n",
+          );
+          continue;
+        }
+
+        console.log("\nExecuting plan...\n");
+
+        const answer = await executePlan(chatState.lastPlan, {
+          history: chatState.history,
+          onStep: (step, toolName, args) => {
+            console.log(formatAgentStep(step, toolName, args));
+          },
+          toolContext: {
+            confirm: (preview) => confirmDiffPreview(preview, rl),
+          },
+        });
+
+        console.log(`\nAssistant:\n${answer}\n`);
+        chatState.history = appendTurn(chatState.history, "[execute plan]", answer);
+        await persistChatState(chatState);
         continue;
       }
 
-      const answer = simpleMode
-        ? await answerSimple(question, history)
-        : await answerWithAgent(question, history, rl);
+      if (question === "/finalize") {
+        if (chatState.session.mode !== "plan") {
+          console.log("\n/finalize is only available in plan mode. Run /plan first.\n");
+          continue;
+        }
 
-      history = appendTurn(history, question, answer);
+        const answer = await answerWithPlan(
+          "Produce the final implementation plan now based on our discussion. Include Plan status: ready if nothing blocks implementation.",
+          chatState,
+          rl,
+          "finalize",
+        );
+        chatState.history = appendTurn(chatState.history, "/finalize", answer);
+        continue;
+      }
+
+      if (question.startsWith("/")) {
+        await handleCommand(question, rl, chatState);
+        continue;
+      }
+
+      let answer: string;
+
+      if (chatState.session.mode === "simple") {
+        answer = await answerSimple(question, chatState.history);
+        chatState.history = appendTurn(chatState.history, question, answer);
+      } else if (chatState.session.mode === "plan") {
+        capturePlanTitle(chatState, question);
+        answer = await answerWithPlan(question, chatState, rl);
+        chatState.history = appendTurn(chatState.history, question, answer);
+      } else {
+        answer = await answerWithAgent(question, chatState.history, rl);
+        chatState.history = appendTurn(chatState.history, question, answer);
+      }
     } catch (error) {
       console.error("Error:", error instanceof Error ? error.message : error);
       console.log();

@@ -157,6 +157,22 @@ export function getProjectPathFromArgs(): string | undefined {
   return parseCli().projectPath;
 }
 
+export function resolveConfigProjectPath(): string {
+  const fromArgs = getProjectPathFromArgs();
+
+  if (fromArgs) {
+    return fromArgs;
+  }
+
+  const fromEnv = process.env.PROJECT_PATH?.trim();
+
+  if (fromEnv) {
+    return resolveProjectPath(path.resolve(fromEnv));
+  }
+
+  return resolveProjectPath(process.cwd());
+}
+
 export function isProjectFlag(arg: string): boolean {
   return PROJECT_FLAGS.has(arg) || arg.startsWith("--project=");
 }

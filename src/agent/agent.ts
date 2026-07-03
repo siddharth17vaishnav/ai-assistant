@@ -14,11 +14,37 @@ import {
 import { getGitSummary, getRecentDiff, isGitQuestion } from "../tools/git.js";
 import { buildPrompt } from "../llm/prompt.js";
 import { ask } from "../llm/llm.js";
+import { buildPlanSystemPrompt, type PlanPhase } from "./plan.js";
+import {
+  AGENT_MODE_RULES,
+  LOCAL_ASSISTANT_RULES,
+  PLAN_MODE_RULES,
+} from "./capabilities.js";
 
-function buildSystemPrompt(): string {
-  const toolNames = getToolNames().join(", ");
+export type AgentMode = "agent" | "plan";
 
-  return `You are an expert coding assistant exploring a local codebase.
+function buildSystemPrompt(mode: AgentMode, planPhase?: PlanPhase): string {
+  const readOnly = mode === "plan";
+  const toolNames = getToolNames({ readOnly }).join(", ");
+
+  if (mode === "plan") {
+    const phasePrompt = buildPlanSystemPrompt(planPhase ?? "discover");
+    return `${LOCAL_ASSISTANT_RULES}
+
+${PLAN_MODE_RULES}
+
+${phasePrompt}
+
+Available read-only tools: ${toolNames}
+
+You may receive prior conversation turns — use them for follow-up questions.`;
+  }
+
+  return `${LOCAL_ASSISTANT_RULES}
+
+${AGENT_MODE_RULES}
+
+You are an expert coding assistant exploring a local codebase.
 
 Available tools: ${toolNames}
 
@@ -39,17 +65,25 @@ You may receive prior conversation turns — use them for follow-up questions.`;
 function normalizeToolCalls(
   native: ToolCall[],
   content: string,
+  mode: AgentMode,
 ): ToolCall[] {
-  if (native.length > 0) {
-    return native;
+  const allowed = new Set(getToolNames({ readOnly: mode === "plan" }));
+  const calls = native.length > 0 ? native : parseToolCallsFromText(content);
+
+  return calls.filter((call) => allowed.has(call.name));
+}
+
+function planContinueHint(planPhase?: PlanPhase): string {
+  if (planPhase === "finalize") {
+    return "Continue exploring (JSON only) or produce the final plan using the finalize template.";
   }
 
-  return parseToolCallsFromText(content).filter((call) =>
-    getToolNames().includes(call.name),
-  );
+  return "Continue exploring (JSON only) or produce your discovery response with approaches and questions.";
 }
 
 export interface AgentOptions {
+  mode?: AgentMode;
+  planPhase?: PlanPhase;
   history?: ChatMessage[];
   onStep?: (
     step: number,
@@ -64,7 +98,11 @@ export async function runAgent(
   question: string,
   options?: AgentOptions,
 ): Promise<string> {
-  const maxSteps = options?.maxSteps ?? config.agent.maxSteps;
+  const mode = options?.mode ?? "agent";
+  const planPhase = options?.planPhase;
+  const maxSteps =
+    options?.maxSteps ??
+    (mode === "plan" ? config.plan.maxSteps : config.agent.maxSteps);
   const prior = trimHistory(
     (options?.history ?? []).filter(
       (message) => message.role === "user" || message.role === "assistant",
@@ -72,14 +110,23 @@ export async function runAgent(
   );
 
   const messages: ChatMessage[] = [
-    { role: "system", content: buildSystemPrompt() },
+    { role: "system", content: buildSystemPrompt(mode, planPhase) },
     ...prior,
     { role: "user", content: question },
   ];
 
+  const toolContext: ToolContext = {
+    ...options?.toolContext,
+    readOnly: mode === "plan",
+  };
+
   for (let step = 1; step <= maxSteps; step++) {
     const result = await chat(messages);
-    const toolCalls = normalizeToolCalls(result.toolCalls, result.content);
+    const toolCalls = normalizeToolCalls(
+      result.toolCalls,
+      result.content,
+      mode,
+    );
 
     if (isFinalAnswer(result.content, toolCalls)) {
       return result.content.trim();
@@ -103,26 +150,33 @@ export async function runAgent(
         output = await executeTool(
           toolCall.name,
           toolCall.arguments,
-          options?.toolContext,
+          toolContext,
         );
       } catch (error) {
         output =
           error instanceof Error ? error.message : "Tool execution failed.";
       }
 
+      const continueHint =
+        mode === "plan"
+          ? planContinueHint(planPhase)
+          : "Continue with another tool (JSON only) or provide your final answer in plain English.";
+
       messages.push({
         role: "user",
-        content: `[Tool result: ${toolCall.name}]\n${output}\n\nContinue with another tool (JSON only) or provide your final answer in plain English.`,
+        content: `[Tool result: ${toolCall.name}]\n${output}\n\n${continueHint}`,
       });
     }
   }
 
-  return runFallbackAnswer(question, prior);
+  return runFallbackAnswer(question, prior, mode, planPhase);
 }
 
 async function runFallbackAnswer(
   question: string,
   history: ChatMessage[],
+  mode: AgentMode,
+  planPhase?: PlanPhase,
 ): Promise<string> {
   const chunks = await retrieveHybrid(question);
   let extraContext: string | undefined;
@@ -140,17 +194,17 @@ async function runFallbackAnswer(
   }
 
   const prompt = buildPrompt(question, chunks, extraContext);
+  const systemContent =
+    mode === "plan"
+      ? `${LOCAL_ASSISTANT_RULES}\n\n${PLAN_MODE_RULES}\n\n${buildPlanSystemPrompt(planPhase ?? "discover")}`
+      : `${LOCAL_ASSISTANT_RULES}\n\nYou are a coding assistant. Answer using the provided context and prior conversation. Never claim you cannot access the codebase.`;
 
   if (history.length === 0) {
     return ask(prompt);
   }
 
   const result = await chat([
-    {
-      role: "system",
-      content:
-        "You are a coding assistant. Answer using the provided context and prior conversation.",
-    },
+    { role: "system", content: systemContent },
     ...history,
     { role: "user", content: prompt },
   ]);
@@ -168,4 +222,22 @@ export function formatAgentStep(
     argPreview.length > 80 ? `${argPreview.slice(0, 77)}...` : argPreview;
 
   return `[step ${step}] ${toolName}(${truncated})`;
+}
+
+export async function runPlanner(
+  question: string,
+  options?: Omit<AgentOptions, "mode">,
+): Promise<string> {
+  return runAgent(question, { ...options, mode: "plan" });
+}
+
+export async function executePlan(
+  plan: string,
+  options?: Omit<AgentOptions, "mode">,
+): Promise<string> {
+  const prompt = `Implement the following plan exactly. Use tools to read, edit, and write files as needed.
+
+${plan}`;
+
+  return runAgent(prompt, { ...options, mode: "agent" });
 }

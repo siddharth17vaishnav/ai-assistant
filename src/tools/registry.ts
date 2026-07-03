@@ -38,6 +38,7 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<string>;
 
 export interface ToolContext {
   confirm?: (preview: DiffPreview) => Promise<boolean>;
+  readOnly?: boolean;
 }
 
 interface RegisteredTool {
@@ -307,12 +308,22 @@ const registry: Record<string, RegisteredTool> = {
   },
 };
 
-export function getToolDefinitions(): ToolDefinition[] {
-  return Object.values(registry).map((tool) => tool.definition);
+export function getToolDefinitions(options?: { readOnly?: boolean }): ToolDefinition[] {
+  return getToolNames(options).map((name) => registry[name]!.definition);
 }
 
-export function getToolNames(): string[] {
-  return Object.keys(registry);
+export function getToolNames(options?: { readOnly?: boolean }): string[] {
+  const names = Object.keys(registry);
+
+  if (options?.readOnly) {
+    return names.filter((name) => !MUTATING_TOOLS.has(name));
+  }
+
+  return names;
+}
+
+export function isMutatingTool(name: string): boolean {
+  return MUTATING_TOOLS.has(name);
 }
 
 export async function executeTool(
@@ -324,6 +335,10 @@ export async function executeTool(
 
   if (!tool) {
     throw new Error(`Unknown tool: ${name}`);
+  }
+
+  if (context?.readOnly && MUTATING_TOOLS.has(name)) {
+    return "Plan mode is read-only. Use read/search tools to explore, then finalize your plan. The user can run /execute to implement changes.";
   }
 
   if (MUTATING_TOOLS.has(name)) {

@@ -20,8 +20,10 @@ Commands:
   dev       List loaded project files (smoke test)
 
 Options:
-  --project, -p   Path to the codebase
+  --project, -p   Path to the codebase (default: current directory)
   --simple        RAG mode instead of agent (chat)
+  --plan          Plan mode — explore read-only, then /execute (chat)
+  --resume        Auto-resume saved plan session on startup (chat)
   --watch         Auto-sync index on file changes (chat)
   --no-ui         Terminal-only diff preview (chat)
   --full          Force full index rebuild (index)
@@ -30,6 +32,7 @@ Examples:
   code index ./my-app
   code index ./my-app --full
   code chat --project D:\\Projects\\MyApp
+  code chat --plan --resume ./my-app
   code query ./my-app "How does auth work?"
 
 Install globally: npm install -g @code.siddharth/code

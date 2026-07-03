@@ -1,32 +1,14 @@
 import dotenv from "dotenv";
 import path from "path";
 
-import { getProjectPathFromArgs, resolveProjectPath } from "./cliArgs.js";
 import { getProjectStoragePaths } from "./projectStorage.js";
+import { resolveConfigProjectPath } from "./cliArgs.js";
 
 dotenv.config({ quiet: true });
 
 function envOrDefault(name: string, fallback: string): string {
   const value = process.env[name]?.trim();
   return value || fallback;
-}
-
-function resolveConfigProjectPath(): string {
-  const fromArgs = getProjectPathFromArgs();
-
-  if (fromArgs) {
-    return fromArgs;
-  }
-
-  const fromEnv = process.env.PROJECT_PATH;
-
-  if (fromEnv) {
-    return resolveProjectPath(path.resolve(fromEnv));
-  }
-
-  throw new Error(
-    "Project path required. Pass --project <path> or set PROJECT_PATH in .env",
-  );
 }
 
 const projectPath = resolveConfigProjectPath();
@@ -64,6 +46,10 @@ export const config = {
   agent: {
     maxSteps: 8,
     maxHistoryTurns: 10,
+  },
+
+  plan: {
+    maxSteps: 12,
   },
 
   preview: {

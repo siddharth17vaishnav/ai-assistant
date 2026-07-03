@@ -1,6 +1,6 @@
 {
   "name": "@code.siddharth/code",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "code — local RAG coding assistant powered by Ollama and LanceDB",
   "type": "module",
   "main": "./dist/cli/main.js",
@@ -17,6 +17,8 @@
     "dev": "tsx src/cli/dev.ts",
     "chat": "tsx src/cli/chat.ts",
     "chat:simple": "tsx src/cli/chat.ts --simple",
+    "chat:plan": "tsx src/cli/chat.ts --plan",
+    "chat:plan:resume": "tsx src/cli/chat.ts --plan --resume",
     "chat:watch": "tsx src/cli/chat.ts --watch",
     "index": "tsx src/cli/indexer.ts",
     "index:full": "tsx src/cli/indexer.ts --full",
