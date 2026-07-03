@@ -4,7 +4,7 @@ import path from "path";
 import { getProjectPathFromArgs, resolveProjectPath } from "./cliArgs.js";
 import { getProjectStoragePaths } from "./projectStorage.js";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 function resolveConfigProjectPath(): string {
   const fromArgs = getProjectPathFromArgs();
