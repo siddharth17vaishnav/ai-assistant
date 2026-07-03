@@ -35,7 +35,10 @@ import { confirmDiffPreview } from "../preview/confirmPreview.js";
 import { config } from "../core/config.js";
 import { hasFlag } from "../core/cliArgs.js";
 import { runIfDirect } from "../core/cliEntry.js";
-import { colors, USER_PROMPT } from "../core/terminal.js";
+import {
+  rewriteSubmittedUserLine,
+  userInputPrompt,
+} from "../core/terminal.js";
 import {
   formatIndexedProjects,
   listIndexedProjects,
@@ -354,8 +357,11 @@ export async function runChat() {
   console.log(`Index storage: ${config.projectStorageDir}\n`);
 
   while (true) {
-    const question = (await rl.question(USER_PROMPT)).trim();
-    process.stdout.write(colors.reset);
+    const raw = await rl.question(userInputPrompt());
+    if (raw.length > 0) {
+      rewriteSubmittedUserLine(raw.trimEnd());
+    }
+    const question = raw.trim();
 
     if (!question || question === "exit" || question === "quit") {
       break;

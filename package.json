@@ -1,6 +1,6 @@
 {
   "name": "@code.siddharth/code",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "code — local RAG coding assistant powered by Ollama and LanceDB",
   "type": "module",
   "main": "./dist/cli/main.js",
