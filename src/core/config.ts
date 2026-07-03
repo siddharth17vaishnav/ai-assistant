@@ -6,6 +6,11 @@ import { getProjectStoragePaths } from "./projectStorage.js";
 
 dotenv.config({ quiet: true });
 
+function envOrDefault(name: string, fallback: string): string {
+  const value = process.env[name]?.trim();
+  return value || fallback;
+}
+
 function resolveConfigProjectPath(): string {
   const fromArgs = getProjectPathFromArgs();
 
@@ -25,6 +30,8 @@ function resolveConfigProjectPath(): string {
 }
 
 const projectPath = resolveConfigProjectPath();
+dotenv.config({ path: path.join(projectPath, ".env"), quiet: true });
+
 const indexStorage = getProjectStoragePaths(projectPath);
 
 export const config = {
@@ -36,9 +43,9 @@ export const config = {
   manifestPath: indexStorage.manifestPath,
 
   ollama: {
-    llm: process.env.LLM_MODEL!,
-    embedding: process.env.EMBED_MODEL!,
-    baseUrl: process.env.OLLAMA_BASE_URL!,
+    llm: envOrDefault("LLM_MODEL", "qwen2.5-coder:14b"),
+    embedding: envOrDefault("EMBED_MODEL", "nomic-embed-text"),
+    baseUrl: envOrDefault("OLLAMA_BASE_URL", "http://localhost:11434"),
   },
 
   chunking: {
