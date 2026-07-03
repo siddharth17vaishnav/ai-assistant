@@ -51,3 +51,10 @@ export interface SymbolMatch {
   name: string;
   text: string;
 }
+
+export interface ReferenceMatch {
+  path: string;
+  line: number;
+  kind: string;
+  text: string;
+}

@@ -1,6 +1,10 @@
 import type { SearchResult } from "./types.js";
 
-export function buildPrompt(question: string, chunks: SearchResult[]): string {
+export function buildPrompt(
+  question: string,
+  chunks: SearchResult[],
+  extraContext?: string,
+): string {
   const context = chunks
     .map(
       (chunk, index) =>
@@ -8,14 +12,18 @@ export function buildPrompt(question: string, chunks: SearchResult[]): string {
     )
     .join("\n\n---\n\n");
 
-  return `You are a coding assistant. Answer based only on the provided code context.
-Cite file paths and line numbers when relevant. If the context is insufficient, say so.
+  const sections = [
+    "You are a coding assistant. Answer based only on the provided code context.",
+    "Cite file paths and line numbers when relevant. If the context is insufficient, say so.",
+  ];
 
-Context:
-${context}
+  if (extraContext) {
+    sections.push("", "Additional context:", extraContext);
+  }
 
-Question:
-${question}`;
+  sections.push("", "Context:", context, "", "Question:", question);
+
+  return sections.join("\n");
 }
 
 export function formatSources(chunks: SearchResult[]): string {

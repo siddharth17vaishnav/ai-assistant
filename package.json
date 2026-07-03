@@ -22,7 +22,8 @@
     "dotenv": "^17.4.2",
     "fast-glob": "^3.3.3",
     "ignore": "^7.0.5",
-    "llamaindex": "^0.12.1"
+    "llamaindex": "^0.12.1",
+    "ts-morph": "^28.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
