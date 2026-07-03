@@ -1,5 +1,6 @@
 import readline from "readline/promises";
 
+import { hasFlag } from "../cliArgs.js";
 import { config } from "../config.js";
 import type { DiffPreview } from "../types.js";
 import { formatDiffPreviewText } from "../tools/diff.js";
@@ -13,7 +14,7 @@ export async function confirmDiffPreview(
   const useWeb =
     config.preview.enabled &&
     !options?.forceTerminal &&
-    !process.argv.includes("--no-ui");
+    !hasFlag("--no-ui");
 
   if (useWeb) {
     try {

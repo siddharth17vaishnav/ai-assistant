@@ -1,11 +1,11 @@
 import { ask } from "./llm.js";
+import { getQueryText } from "./cliArgs.js";
 import { buildPrompt, formatSources } from "./prompt.js";
 import { retrieveHybrid } from "./retriever.js";
 
 async function main() {
   const question =
-    process.argv.slice(2).join(" ") ||
-    "Explain how the theme system works.";
+    getQueryText() || "Explain how the theme system works.";
 
   console.log(`Question: ${question}\n`);
   console.log("Searching index...");

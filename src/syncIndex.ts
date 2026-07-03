@@ -3,6 +3,7 @@ import { config } from "./config.js";
 import { embedBatch } from "./embedder.js";
 import { loadProject, loadProjectFiles, scanProject } from "./loader.js";
 import { diffFiles, loadManifest, saveManifest } from "./manifest.js";
+import { migrateLegacyStorageIfNeeded } from "./projectStorage.js";
 import type { Chunk, ProjectFile, StoredChunk, SyncResult } from "./types.js";
 import {
   addChunks,
@@ -78,6 +79,8 @@ export async function syncIndex(options?: {
 }): Promise<SyncResult> {
   const { forceFull = false, quiet = false } = options ?? {};
 
+  await migrateLegacyStorageIfNeeded(config.projectPath);
+
   if (forceFull) {
     return fullIndex(quiet);
   }
@@ -86,8 +89,7 @@ export async function syncIndex(options?: {
   const manifest = await loadManifest();
   const hasTable = await tableExists();
 
-  const needsFull =
-    !manifest || !hasTable || manifest.projectPath !== config.projectPath;
+  const needsFull = !manifest || !hasTable;
 
   if (needsFull) {
     return fullIndex(quiet);

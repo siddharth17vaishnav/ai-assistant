@@ -32,9 +32,15 @@ import {
 import { writeProjectFile } from "./tools/writeFile.js";
 import { startWatcher } from "./watcher.js";
 import { confirmDiffPreview } from "./web/confirmPreview.js";
+import { config } from "./config.js";
+import { hasFlag } from "./cliArgs.js";
+import {
+  formatIndexedProjects,
+  listIndexedProjects,
+} from "./projectStorage.js";
 
-const enableWatch = process.argv.includes("--watch");
-const simpleMode = process.argv.includes("--simple");
+const enableWatch = hasFlag("--watch");
+const simpleMode = hasFlag("--simple");
 
 const HELP = `
 Commands:
@@ -49,14 +55,23 @@ Commands:
   /imports <path>            List imports in a file
   /importers <path>          Find files that import a module
   /git                       Show git status and diff summary
+  /projects                  List all indexed projects
   /reindex                   Run incremental index sync
   exit | quit                Quit
 
 Modes:
+  <path>      Project path as first argument (e.g. npm run dev -- ./my-app)
+  --project   Path to the codebase (overrides PROJECT_PATH in .env)
+  -p          Short form of --project
   Default     Agent mode with conversation memory
   --simple    Single-shot hybrid RAG (still remembers prior turns)
   --watch     Auto-sync index on file changes
   --no-ui     Terminal-only diff preview (skip browser UI)
+
+Examples:
+  npm run dev -- D:\Projects\MyApp
+  npm run chat -- --project ../my-app
+  npm run index -- -p ./portfolio
 
 Tips:
   Code changes open in a Claude-style browser preview by default.
@@ -238,6 +253,12 @@ async function handleCommand(
       return true;
     }
 
+    case "/projects": {
+      const projects = await listIndexedProjects();
+      console.log(`\nIndexed projects:\n\n${formatIndexedProjects(projects, config.projectPath)}\n`);
+      return true;
+    }
+
     case "/reindex": {
       console.log("\nSyncing index...\n");
       resetProjectCache();
@@ -326,7 +347,9 @@ async function main() {
   };
 
   const modeLabel = simpleMode ? "simple RAG" : "agent";
-  console.log(`AI Coding Assistant (${modeLabel}) — type /help for commands\n`);
+  console.log(`AI Coding Assistant (${modeLabel})`);
+  console.log(`Project: ${config.projectPath}`);
+  console.log(`Index storage: ${config.projectStorageDir}\n`);
 
   while (true) {
     const question = (await rl.question("You: ")).trim();

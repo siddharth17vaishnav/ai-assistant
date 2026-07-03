@@ -1,6 +1,9 @@
+import { config } from "./config.js";
 import { loadProject } from "./loader.js";
 
 async function main() {
+  console.log(`Project: ${config.projectPath}\n`);
+
   const files = await loadProject();
 
   console.log(`Loaded ${files.length} files\n`);

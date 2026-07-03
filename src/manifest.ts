@@ -3,6 +3,7 @@ import path from "path";
 
 import { config } from "./config.js";
 import type { FileEntry, IndexManifest } from "./types.js";
+import { touchProjectRegistry } from "./projectStorage.js";
 
 export async function loadManifest(): Promise<IndexManifest | null> {
   try {
@@ -23,6 +24,7 @@ export async function saveManifest(files: Record<string, FileEntry>): Promise<vo
   };
 
   await fs.writeFile(config.manifestPath, JSON.stringify(manifest, null, 2));
+  await touchProjectRegistry(config.projectPath);
 }
 
 export function diffFiles(

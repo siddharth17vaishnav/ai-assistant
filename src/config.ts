@@ -1,12 +1,39 @@
 import dotenv from "dotenv";
+import path from "path";
+
+import { getProjectPathFromArgs, resolveProjectPath } from "./cliArgs.js";
+import { getProjectStoragePaths } from "./projectStorage.js";
 
 dotenv.config();
 
+function resolveConfigProjectPath(): string {
+  const fromArgs = getProjectPathFromArgs();
+
+  if (fromArgs) {
+    return fromArgs;
+  }
+
+  const fromEnv = process.env.PROJECT_PATH;
+
+  if (fromEnv) {
+    return resolveProjectPath(path.resolve(fromEnv));
+  }
+
+  throw new Error(
+    "Project path required. Pass --project <path> or set PROJECT_PATH in .env",
+  );
+}
+
+const projectPath = resolveConfigProjectPath();
+const indexStorage = getProjectStoragePaths(projectPath);
+
 export const config = {
-  projectPath: process.env.PROJECT_PATH!,
+  projectPath,
   storageDir: "./storage",
-  lanceDbDir: "./storage/lancedb",
-  manifestPath: "./storage/manifest.json",
+  projectStorageId: indexStorage.id,
+  projectStorageDir: indexStorage.rootDir,
+  lanceDbDir: indexStorage.lanceDbDir,
+  manifestPath: indexStorage.manifestPath,
 
   ollama: {
     llm: process.env.LLM_MODEL!,
