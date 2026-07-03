@@ -1,6 +1,8 @@
-# Code
+# code
 
-A local coding assistant powered by **Ollama** and **RAG** (Retrieval-Augmented Generation). Index any codebase, ask questions about it, and let an agent read files, search symbols, and propose edits — all running on your machine.
+Local RAG coding assistant powered by **Ollama** and **LanceDB**. Index any codebase, ask questions, and run an agent with tools — all on your machine.
+
+**npm package:** `code` · **CLI command:** `code`
 
 No cloud API. No code leaving your laptop.
 
@@ -68,12 +70,10 @@ npm run build
 ### As a global CLI
 
 ```bash
-npm install -g @siddharth17vaishnav/code
-# or from this repo:
-npm link
+npm install -g code
 ```
 
-Then use the `code` command anywhere:
+Then run **`code`** anywhere (the command name, not the scoped package name):
 
 ```bash
 code index ./my-app
@@ -82,7 +82,7 @@ code query ./my-app "How does routing work?"
 code --help
 ```
 
-> **Note:** If you have VS Code installed, its `code` command may conflict. Use `npx @siddharth17vaishnav/code` or rename the VS Code alias instead.
+> **Note:** If you have VS Code installed, its `code` command may conflict. Use `npx code` or rename the VS Code alias instead.
 
 ### Build the package
 

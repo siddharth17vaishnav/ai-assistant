@@ -348,7 +348,7 @@ export async function runChat() {
   };
 
   const modeLabel = simpleMode ? "simple RAG" : "agent";
-  console.log(`Code (${modeLabel})`);
+  console.log(`code (${modeLabel})`);
   console.log(`Project: ${config.projectPath}`);
   console.log(`Index storage: ${config.projectStorageDir}\n`);
 
