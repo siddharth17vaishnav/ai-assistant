@@ -16,7 +16,7 @@ No cloud API. No code leaving your laptop.
 - **Incremental sync** — only re-embeds changed files
 - **Agent mode** — multi-step tool loop (read, grep, edit, git, AST references)
 - **Plan mode** — read-only exploration, approaches + questions, then `/execute` to implement
-- **Saved plans** — auto-save under `storage/projects/<id>/plans/`; resume with `/resume` or `--resume`
+- **Saved plans** — auto-save under `~/.code/projects/<id>/plans/`; resume with `/resume` or `--resume`
 - **Simple RAG mode** — single-shot Q&A without the agent loop
 - **Browser diff preview** — Claude-style review UI before applying writes/edits
 - **Slash commands** — `/grep`, `/read`, `/edit`, `/projects`, and more
@@ -104,6 +104,10 @@ cp .env.example .env
 ```env
 # Optional — defaults to current directory if omitted
 PROJECT_PATH=D:\path\to\your\project
+
+# Optional — override user data directory (default: ~/.code)
+# CODE_HOME=D:\path\to\custom-code-home
+
 OLLAMA_BASE_URL=http://localhost:11434
 LLM_MODEL=qwen2.5-coder:14b
 EMBED_MODEL=nomic-embed-text
@@ -209,13 +213,25 @@ Follow-up prompts **update the current plan** — they do not restart discovery.
 
 **Saved plans**
 
-Plans are stored per project under:
+Plans are stored per project under your user data directory:
+
+| Platform | Default location |
+|----------|------------------|
+| Windows | `%USERPROFILE%\.code\projects\<hash>\plans\` |
+| macOS / Linux | `~/.code/projects/<hash>/plans/` |
 
 ```
-storage/projects/<hash>/plans/<plan-id>/
-  session.json    # conversation + plan state
-  plan.md         # exported markdown
+~/.code/
+  projects.json
+  projects/
+    <hash>/
+      plans/
+        <plan-id>/
+          session.json
+          plan.md
 ```
+
+Override with `CODE_HOME` in `.env` if needed.
 
 Use `/plans` to list saved plans, `/resume` to pick one and continue, or start with `--resume`:
 
@@ -279,10 +295,15 @@ Preview server runs at `http://127.0.0.1:3847`. Use `--no-ui` to fall back to te
 
 ## Index Storage
 
-Each project gets its own isolated index:
+Indexes, manifests, and saved plans live in a **user-level data directory**, not inside your project repo:
+
+| Platform | Default path |
+|----------|--------------|
+| Windows | `C:\Users\<you>\.code\` |
+| macOS / Linux | `~/.code/` |
 
 ```
-storage/
+~/.code/
   projects.json
   projects/
     <hash>/
@@ -294,6 +315,10 @@ storage/
           session.json
           plan.md
 ```
+
+On first run, if a legacy `./storage` folder exists in the current working directory, it is moved into `~/.code` automatically.
+
+Set `CODE_HOME` in `.env` to use a custom location.
 
 Switch between indexed projects instantly — no full rebuild unless files changed.
 

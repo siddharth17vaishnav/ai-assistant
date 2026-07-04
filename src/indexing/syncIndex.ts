@@ -3,7 +3,7 @@ import { config } from "../core/config.js";
 import { embedBatch } from "./embedder.js";
 import { loadProject, loadProjectFiles, scanProject } from "./loader.js";
 import { diffFiles, loadManifest, saveManifest } from "./manifest.js";
-import { migrateLegacyStorageIfNeeded } from "../core/projectStorage.js";
+import { ensureStorageReady } from "../core/projectStorage.js";
 import type { Chunk, ProjectFile, StoredChunk, SyncResult } from "../core/types.js";
 import {
   addChunks,
@@ -79,7 +79,7 @@ export async function syncIndex(options?: {
 }): Promise<SyncResult> {
   const { forceFull = false, quiet = false } = options ?? {};
 
-  await migrateLegacyStorageIfNeeded(config.projectPath);
+  await ensureStorageReady(config.projectPath);
 
   if (forceFull) {
     return fullIndex(quiet);

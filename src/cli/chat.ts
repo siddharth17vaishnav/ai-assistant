@@ -28,6 +28,7 @@ import { buildPrompt, formatSources } from "../llm/prompt.js";
 import { retrieveHybrid } from "../retrieval/retriever.js";
 import { appendTurn, trimHistory } from "../agent/session.js";
 import { syncIndex } from "../indexing/syncIndex.js";
+import { ensureStorageReady } from "../core/projectStorage.js";
 import { buildEditDiffPreview, buildWriteDiffPreview } from "../tools/diff.js";
 import { editProjectFile } from "../tools/editFile.js";
 import { getGitSummary, getRecentDiff, isGitQuestion } from "../tools/git.js";
@@ -241,7 +242,7 @@ Examples:
 Tips:
   Plan mode runs in two phases: discovery (approaches + questions) then finalize.
   Follow-up prompts update the current plan — they do not start over.
-  Plans auto-save under storage/projects/<id>/plans/.
+  Plans auto-save under ~/.code/projects/<id>/plans/ (or %USERPROFILE%\\.code on Windows).
   Use --resume to pick a saved plan on startup, or /resume anytime.
   Use /plans to list saved plans, or /plan to start a new plan.
   Code changes open in a Claude-style browser preview by default.
@@ -675,6 +676,8 @@ export async function runChat() {
   if (enableWatch) {
     startWatcher();
   }
+
+  await ensureStorageReady(config.projectPath);
 
   const rl = readline.createInterface({ input, output });
   const chatState: ChatState = {

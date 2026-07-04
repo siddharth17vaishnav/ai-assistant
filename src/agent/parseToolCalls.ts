@@ -48,13 +48,78 @@ function objectToToolCall(obj: Record<string, unknown>): ToolCall | null {
   return null;
 }
 
+function extractJsonObjectBlocks(content: string): string[] {
+  const blocks: string[] = [];
+  let index = 0;
+
+  while (index < content.length) {
+    if (content[index] !== "{") {
+      index += 1;
+      continue;
+    }
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    const start = index;
+
+    for (; index < content.length; index += 1) {
+      const character = content[index];
+
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (character === "\\" && inString) {
+        escaped = true;
+        continue;
+      }
+
+      if (character === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (inString) {
+        continue;
+      }
+
+      if (character === "{") {
+        depth += 1;
+      }
+
+      if (character === "}") {
+        depth -= 1;
+
+        if (depth === 0) {
+          blocks.push(content.slice(start, index + 1));
+          index += 1;
+          break;
+        }
+      }
+    }
+
+    if (depth !== 0) {
+      break;
+    }
+  }
+
+  return blocks;
+}
+
 function extractJsonCandidates(content: string): string[] {
   const trimmed = content.trim();
-  const candidates = [trimmed];
+  const candidates = [trimmed, ...extractJsonObjectBlocks(trimmed)];
 
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenced?.[1]) {
-    candidates.push(fenced[1].trim());
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/gi) ?? [];
+
+  for (const block of fenced) {
+    const inner = block.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+
+    if (inner) {
+      candidates.push(inner, ...extractJsonObjectBlocks(inner));
+    }
   }
 
   const start = trimmed.indexOf("{");
@@ -103,17 +168,10 @@ export function parseToolCallsFromText(content: string): ToolCall[] {
 
 export function looksLikeToolCallOnly(content: string): boolean {
   const trimmed = content.trim();
-  if (!trimmed.startsWith("{")) return false;
+  if (!trimmed.includes("{")) return false;
 
   const calls = parseToolCallsFromText(trimmed);
-  if (calls.length === 0) return false;
-
-  const jsonOnly = extractJsonCandidates(trimmed).some((candidate) => {
-    const parsed = tryParseObject(candidate);
-    return parsed != null;
-  });
-
-  return jsonOnly && trimmed.length < 2000;
+  return calls.length > 0;
 }
 
 export function isFinalAnswer(content: string, toolCalls: ToolCall[]): boolean {

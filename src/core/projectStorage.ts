@@ -2,6 +2,12 @@ import { createHash } from "crypto";
 import fs from "fs/promises";
 import path from "path";
 
+import {
+  getCodeHomeDir,
+  getProjectsDir,
+  getProjectsRegistryPath,
+} from "./codeHome.js";
+
 export interface ProjectStoragePaths {
   id: string;
   rootDir: string;
@@ -22,10 +28,33 @@ export interface ProjectRegistry {
   projects: Record<string, ProjectRegistryEntry>;
 }
 
-const LEGACY_LANCE_DB_DIR = "./storage/lancedb";
-const LEGACY_MANIFEST_PATH = "./storage/manifest.json";
-const PROJECTS_DIR = "./storage/projects";
-const REGISTRY_PATH = "./storage/projects.json";
+function getLegacyWorkspaceStoragePaths(workspaceDir = process.cwd()) {
+  const storageDir = path.join(workspaceDir, "storage");
+
+  return {
+    storageDir,
+    lanceDbDir: path.join(storageDir, "lancedb"),
+    manifestPath: path.join(storageDir, "manifest.json"),
+    projectsDir: path.join(storageDir, "projects"),
+    registryPath: path.join(storageDir, "projects.json"),
+  };
+}
+
+async function movePath(source: string, destination: string): Promise<void> {
+  try {
+    await fs.rename(source, destination);
+    return;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+
+    if (code !== "EXDEV") {
+      throw error;
+    }
+  }
+
+  await fs.cp(source, destination, { recursive: true });
+  await fs.rm(source, { recursive: true, force: true });
+}
 
 export function normalizeProjectPath(projectPath: string): string {
   return path.resolve(projectPath).replace(/\\/g, "/").toLowerCase();
@@ -39,7 +68,7 @@ export function getProjectStorageId(projectPath: string): string {
 
 export function getProjectStoragePaths(projectPath: string): ProjectStoragePaths {
   const id = getProjectStorageId(projectPath);
-  const rootDir = path.join(PROJECTS_DIR, id);
+  const rootDir = path.join(getProjectsDir(), id);
 
   return {
     id,
@@ -58,20 +87,54 @@ async function pathExists(targetPath: string): Promise<boolean> {
   }
 }
 
+/** Move ./storage from the current working directory into ~/.code on first run. */
+export async function migrateWorkspaceStorageToCodeHomeIfNeeded(): Promise<void> {
+  const registryPath = getProjectsRegistryPath();
+  const projectsDir = getProjectsDir();
+  const legacy = getLegacyWorkspaceStoragePaths();
+
+  if (await pathExists(registryPath)) {
+    return;
+  }
+
+  const hasLegacyRegistry = await pathExists(legacy.registryPath);
+  const hasLegacyProjects = await pathExists(legacy.projectsDir);
+
+  if (!hasLegacyRegistry && !hasLegacyProjects) {
+    return;
+  }
+
+  await fs.mkdir(getCodeHomeDir(), { recursive: true });
+
+  if (hasLegacyProjects && !(await pathExists(projectsDir))) {
+    await movePath(legacy.projectsDir, projectsDir);
+  }
+
+  if (hasLegacyRegistry && !(await pathExists(registryPath))) {
+    await movePath(legacy.registryPath, registryPath);
+  }
+}
+
+export async function ensureStorageReady(projectPath: string): Promise<void> {
+  await migrateWorkspaceStorageToCodeHomeIfNeeded();
+  await migrateLegacyStorageIfNeeded(projectPath);
+}
+
 export async function migrateLegacyStorageIfNeeded(
   projectPath: string,
 ): Promise<void> {
   const storage = getProjectStoragePaths(projectPath);
+  const legacy = getLegacyWorkspaceStoragePaths();
 
   if (await pathExists(storage.manifestPath)) {
     return;
   }
 
-  if (!(await pathExists(LEGACY_MANIFEST_PATH))) {
+  if (!(await pathExists(legacy.manifestPath))) {
     return;
   }
 
-  const raw = await fs.readFile(LEGACY_MANIFEST_PATH, "utf8");
+  const raw = await fs.readFile(legacy.manifestPath, "utf8");
   const legacyManifest = JSON.parse(raw) as { projectPath?: string };
 
   if (
@@ -84,10 +147,10 @@ export async function migrateLegacyStorageIfNeeded(
 
   await fs.mkdir(storage.rootDir, { recursive: true });
 
-  await fs.rename(LEGACY_MANIFEST_PATH, storage.manifestPath);
+  await movePath(legacy.manifestPath, storage.manifestPath);
 
-  if (await pathExists(LEGACY_LANCE_DB_DIR)) {
-    await fs.rename(LEGACY_LANCE_DB_DIR, storage.lanceDbDir);
+  if (await pathExists(legacy.lanceDbDir)) {
+    await movePath(legacy.lanceDbDir, storage.lanceDbDir);
   }
 
   await touchProjectRegistry(projectPath);
@@ -95,7 +158,7 @@ export async function migrateLegacyStorageIfNeeded(
 
 export async function loadProjectRegistry(): Promise<ProjectRegistry> {
   try {
-    const raw = await fs.readFile(REGISTRY_PATH, "utf8");
+    const raw = await fs.readFile(getProjectsRegistryPath(), "utf8");
     return JSON.parse(raw) as ProjectRegistry;
   } catch {
     return { projects: {} };
@@ -111,8 +174,8 @@ export async function touchProjectRegistry(projectPath: string): Promise<void> {
     updatedAt: new Date().toISOString(),
   };
 
-  await fs.mkdir(path.dirname(REGISTRY_PATH), { recursive: true });
-  await fs.writeFile(REGISTRY_PATH, JSON.stringify(registry, null, 2));
+  await fs.mkdir(getCodeHomeDir(), { recursive: true });
+  await fs.writeFile(getProjectsRegistryPath(), JSON.stringify(registry, null, 2));
 }
 
 export async function listIndexedProjects(): Promise<IndexedProjectInfo[]> {
@@ -144,7 +207,7 @@ export function formatIndexedProjects(
 
       return [
         `- ${project.projectPath}${marker}`,
-        `  storage: storage/projects/${project.id}`,
+        `  storage: ${path.join(getProjectsDir(), project.id)}`,
         `  updated: ${updated}`,
       ].join("\n");
     })

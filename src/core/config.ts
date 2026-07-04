@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import path from "path";
 
+import { getCodeHomeDir } from "./codeHome.js";
 import { getProjectStoragePaths } from "./projectStorage.js";
 import { resolveConfigProjectPath } from "./cliArgs.js";
 
@@ -18,7 +19,7 @@ const indexStorage = getProjectStoragePaths(projectPath);
 
 export const config = {
   projectPath,
-  storageDir: "./storage",
+  storageDir: getCodeHomeDir(),
   projectStorageId: indexStorage.id,
   projectStorageDir: indexStorage.rootDir,
   lanceDbDir: indexStorage.lanceDbDir,

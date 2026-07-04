@@ -1,6 +1,7 @@
 import { config } from "../core/config.js";
 import {
   isFinalAnswer,
+  looksLikeToolCallOnly,
   parseToolCallsFromText,
 } from "./parseToolCalls.js";
 import { chat, type ChatMessage, type ToolCall } from "../llm/llm.js";
@@ -17,13 +18,19 @@ import { ask } from "../llm/llm.js";
 import { buildPlanSystemPrompt, type PlanPhase } from "./plan.js";
 import {
   AGENT_MODE_RULES,
+  EXECUTE_PLAN_RULES,
   LOCAL_ASSISTANT_RULES,
   PLAN_MODE_RULES,
 } from "./capabilities.js";
 
 export type AgentMode = "agent" | "plan";
+export type AgentIntent = "chat" | "execute-plan";
 
-function buildSystemPrompt(mode: AgentMode, planPhase?: PlanPhase): string {
+function buildSystemPrompt(
+  mode: AgentMode,
+  planPhase?: PlanPhase,
+  intent: AgentIntent = "chat",
+): string {
   const readOnly = mode === "plan";
   const toolNames = getToolNames({ readOnly }).join(", ");
 
@@ -44,7 +51,7 @@ You may receive prior conversation turns — use them for follow-up questions.`;
 
 ${AGENT_MODE_RULES}
 
-You are an expert coding assistant exploring a local codebase.
+${intent === "execute-plan" ? `${EXECUTE_PLAN_RULES}\n\n` : ""}You are an expert coding assistant exploring a local codebase.
 
 Available tools: ${toolNames}
 
@@ -54,12 +61,31 @@ When you need a tool, respond with ONLY a JSON object (no markdown, no explanati
 Examples:
 {"name": "search_codebase", "arguments": {"query": "theme styling"}}
 {"name": "read_file", "arguments": {"path": "app/page.tsx"}}
-{"name": "find_importers", "arguments": {"path": "app/stores/themeStore.ts"}}
+{"name": "write_file", "arguments": {"path": "app/page.tsx", "content": "..."}}
+{"name": "edit_file", "arguments": {"path": "app/page.tsx", "start_line": 1, "end_line": 10, "content": "..."}}
 
 When you have enough context to answer, respond in plain English.
 Do NOT return JSON for your final answer. Cite file paths and line numbers.
 Do not invent code that is not in the project.
 You may receive prior conversation turns — use them for follow-up questions.`;
+}
+
+function normalizeMutatingToolCall(call: ToolCall): ToolCall {
+  if (
+    call.name === "edit_file" &&
+    call.arguments.content != null &&
+    (call.arguments.start_line == null || call.arguments.end_line == null)
+  ) {
+    return {
+      name: "write_file",
+      arguments: {
+        path: call.arguments.path,
+        content: call.arguments.content,
+      },
+    };
+  }
+
+  return call;
 }
 
 function normalizeToolCalls(
@@ -68,9 +94,11 @@ function normalizeToolCalls(
   mode: AgentMode,
 ): ToolCall[] {
   const allowed = new Set(getToolNames({ readOnly: mode === "plan" }));
-  const calls = native.length > 0 ? native : parseToolCallsFromText(content);
+  const calls = (native.length > 0 ? native : parseToolCallsFromText(content))
+    .filter((call) => allowed.has(call.name))
+    .map(normalizeMutatingToolCall);
 
-  return calls.filter((call) => allowed.has(call.name));
+  return calls;
 }
 
 function planContinueHint(planPhase?: PlanPhase): string {
@@ -83,6 +111,7 @@ function planContinueHint(planPhase?: PlanPhase): string {
 
 export interface AgentOptions {
   mode?: AgentMode;
+  intent?: AgentIntent;
   planPhase?: PlanPhase;
   history?: ChatMessage[];
   onStep?: (
@@ -99,10 +128,15 @@ export async function runAgent(
   options?: AgentOptions,
 ): Promise<string> {
   const mode = options?.mode ?? "agent";
+  const intent = options?.intent ?? "chat";
   const planPhase = options?.planPhase;
   const maxSteps =
     options?.maxSteps ??
-    (mode === "plan" ? config.plan.maxSteps : config.agent.maxSteps);
+    (mode === "plan"
+      ? config.plan.maxSteps
+      : intent === "execute-plan"
+        ? Math.max(config.agent.maxSteps, 16)
+        : config.agent.maxSteps);
   const prior = trimHistory(
     (options?.history ?? []).filter(
       (message) => message.role === "user" || message.role === "assistant",
@@ -110,7 +144,7 @@ export async function runAgent(
   );
 
   const messages: ChatMessage[] = [
-    { role: "system", content: buildSystemPrompt(mode, planPhase) },
+    { role: "system", content: buildSystemPrompt(mode, planPhase, intent) },
     ...prior,
     { role: "user", content: question },
   ];
@@ -133,6 +167,19 @@ export async function runAgent(
     }
 
     if (toolCalls.length === 0) {
+      if (looksLikeToolCallOnly(result.content)) {
+        messages.push({
+          role: "assistant",
+          content: result.content,
+        });
+        messages.push({
+          role: "user",
+          content:
+            "Could not parse that as a tool call. Return a single JSON object: {\"name\": \"tool_name\", \"arguments\": {...}}. For new files use write_file; for partial edits use edit_file with start_line and end_line.",
+        });
+        continue;
+      }
+
       break;
     }
 
@@ -233,11 +280,15 @@ export async function runPlanner(
 
 export async function executePlan(
   plan: string,
-  options?: Omit<AgentOptions, "mode">,
+  options?: Omit<AgentOptions, "mode" | "intent">,
 ): Promise<string> {
-  const prompt = `Implement the following plan exactly. Use tools to read, edit, and write files as needed.
+  const prompt = `Implement the following approved plan exactly. Use tools to read, write, and edit files as needed. Work through every step before giving your final summary.
 
 ${plan}`;
 
-  return runAgent(prompt, { ...options, mode: "agent" });
+  return runAgent(prompt, {
+    ...options,
+    mode: "agent",
+    intent: "execute-plan",
+  });
 }

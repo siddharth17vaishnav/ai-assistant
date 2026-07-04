@@ -41,6 +41,39 @@ test("parseToolCallsFromText deduplicates identical calls", () => {
   assert.equal(calls.length, 1);
 });
 
+test("parseToolCallsFromText parses multiple JSON objects in one response", () => {
+  const calls = parseToolCallsFromText(`{
+  "name": "write_file",
+  "arguments": {
+    "path": "app/blog/index.tsx",
+    "content": "export default function BlogPage() {}"
+  }
+}
+
+{
+  "name": "edit_file",
+  "arguments": {
+    "path": "app/page.tsx",
+    "start_line": 1,
+    "end_line": 5,
+    "content": "updated"
+  }
+}`);
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0]?.name, "write_file");
+  assert.equal(calls[1]?.name, "edit_file");
+});
+
+test("isFinalAnswer rejects multiple tool JSON blocks", () => {
+  const content = `{"name":"write_file","arguments":{"path":"a.ts","content":"x"}}
+
+{"name":"write_file","arguments":{"path":"b.ts","content":"y"}}`;
+
+  assert.equal(looksLikeToolCallOnly(content), true);
+  assert.equal(isFinalAnswer(content, []), false);
+});
+
 test("isFinalAnswer rejects tool-only JSON responses", () => {
   const content = JSON.stringify({
     name: "read_file",
